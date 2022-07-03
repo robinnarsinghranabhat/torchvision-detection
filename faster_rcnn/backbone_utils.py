@@ -29,9 +29,11 @@ class BackboneWithFPN(nn.Module):
 
     def __init__(self, backbone, return_layers, in_channels_list, out_channels):
         super(BackboneWithFPN, self).__init__()
-        # This returns outputs from multiuple intermediate layers of resnet
+        # Just doing backbone(x) would return Tensors from the last fully-connected layer only.
+        # Thus we de-construct `backbone` module in a way that let's us access
+        # access it's output of it's intermediate-layers as well.
+        # These intermediate-tensors in utilized by FPN below.
         self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
-        # This utilizes all those multiple featueres. Not just output from the last one.
         self.fpn = FeaturePyramidNetwork(
             in_channels_list=in_channels_list,
             out_channels=out_channels,
