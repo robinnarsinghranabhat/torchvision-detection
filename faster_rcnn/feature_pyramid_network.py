@@ -121,27 +121,28 @@ class FeaturePyramidNetwork(nn.Module):
             results (OrderedDict[Tensor]): feature maps after FPN layers.
                 They are ordered from highest resolution first.
         """
-        # unpack OrderedDict into two lists for easier handling
+        # unpack OrderedDict coming from `IntermediateLayerGetter` module into two lists for easier handling
         names = list(x.keys())
         x = list(x.values())
         # Equivalent to : self.inner_blocks[-1](x[-1])
-        # apply 1x1 convolution to last layer output
+        # apply 1x1 convolution to output of last layer of backbone (i.e Resnet)
         last_inner = self.get_result_from_inner_blocks(x[-1], -1)
         results = []
         # Equivalent to : self.layer_blocks[-1](last_inner)
         # apply a 3x3 convolution to above and save as result of last layer
         results.append(self.get_result_from_layer_blocks(last_inner, -1))
 
-        # For each layer output from second-last to first
+        # For each intermediate layer output of backbone from second-last to first
         for idx in range(len(x) - 2, -1, -1):
             # apply 1x1 convolution to keep channel number same
             inner_lateral = self.get_result_from_inner_blocks(x[idx], idx)
             feat_shape = inner_lateral.shape[-2:]
-            # Upsample the output from layer one step above
+            # Upsample the output from layer one step above. Remember after each layer in a
+            # resnet, "num-channels" doubled while "size" halved
             inner_top_down = F.interpolate(last_inner, size=feat_shape, mode="nearest")
             # Add features from both layers now that they have same channel and shape
             last_inner = inner_lateral + inner_top_down
-            # Finally apply a convolution and save it to result
+            # Finally apply a convolution to nullify aliasing due to upsampling and save it to resultz
             results.insert(0, self.get_result_from_layer_blocks(last_inner, idx))
 
         if self.extra_blocks is not None:

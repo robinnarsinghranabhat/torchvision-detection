@@ -1,28 +1,20 @@
-## Usecase :
+## About :
 This is my personal `faster-rcnn` module with almost all components copied from `torchvision.model.detection` module.
+Goal is to disect the components and understand the implementation details.  
 
-I just added as much comments as possible with other uncessary code removed. Hope this will help the intereseted ones understand the `faster-rcnn` model better.
-  Just copy the `faster_rcnn` folder in your project folder and import model as :
+I added more explicit comments with other uncessary code removed. Hope this will help the intereseted ones understand the `faster-rcnn` model better.
+
+Just copy the `faster_rcnn` folder in your project folder and import model as :
 ```(python)
 from faster_rcnn.faster_rcnn_model import fasterrcnn_resnet50_fpn
-model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-
-# get number of input features for the classifier
-in_features = model.roi_heads.box_predictor.cls_score.in_features
-# replace the pre-trained head with a new one
-model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes) 
 ```
-  Instead of regular : 
-  `from torchvision.models.detection import fasterrcnn_resnet50_fpn`
-
-
-## General Layout :
-- Resnet backbone with a feature-pyramid-network (FPN)
-  -  Rather than just using features from intermedite layer, FPN utilizes
-    features from different intermediate layers of a backbone (in this case, resnet)
-  to create more meaningful features.
-- ROI Network
-- RPN Network
+Instead of regular : 
+```
+from torchvision.models.detection import fasterrcnn_resnet50_fpn
+```
+NOTE : This implementation is slightly different original `faster-rcnn` as it utilizes a `Feature-Pyramid-Network` after the `backbone`.
+Than just using feature-maps of `backbone`. 
+Reference Paper : https://openaccess.thecvf.com/content_cvpr_2017/papers/Lin_Feature_Pyramid_Networks_CVPR_2017_paper.pdf
 
 
 ## Setup for Development :

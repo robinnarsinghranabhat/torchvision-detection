@@ -80,6 +80,20 @@ class AnchorGenerator(nn.Module):
         self, scales, aspect_ratios, dtype=torch.float32, device="cpu"
     ):
         # type: (List[int], List[float], int, Device) -> Tensor  # noqa: F821
+        """
+        Generates list of zero-centered anchor boxes.
+
+        scales : List of `scale`.
+            `scale` of 32 means our image area will be 32*32
+        aspect_ratios : Ratio of width to height
+
+        For a given scale and aspect-ratio, calculate the bounding-box for anchor.
+        Example :
+            For an image of size 16 i.e area of (16*16) and `aspect ratio` of 1:2,
+            - w ~= 11.314, h ~= 22.628. Thus, w*h ~= 256
+            Similarly, in same image size, `aspect_ratio` of 1 means:
+            - w = 16,  h = 16. Thus, w*h = 256
+        """
         scales = torch.as_tensor(scales, dtype=dtype, device=device)
         aspect_ratios = torch.as_tensor(aspect_ratios, dtype=dtype, device=device)
         h_ratios = torch.sqrt(aspect_ratios)
@@ -93,6 +107,11 @@ class AnchorGenerator(nn.Module):
 
     def set_cell_anchors(self, dtype, device):
         # type: (int, Device) -> None  # noqa: F821
+        """
+        For each size :
+            For each aspect-ratio :
+                generate zero-centered anchor boxes
+        """
         if self.cell_anchors is not None:
             cell_anchors = self.cell_anchors
             assert cell_anchors is not None
@@ -100,7 +119,7 @@ class AnchorGenerator(nn.Module):
             # which is a valid assumption in the current state of the codebase
             if cell_anchors[0].device == device:
                 return
-
+        # For each size : 32, 64, .. 512 : setup 3 anchor boxes for 3 different aspect ratios.
         cell_anchors = [
             self.generate_anchors(sizes, aspect_ratios, dtype, device)
             for sizes, aspect_ratios in zip(self.sizes, self.aspect_ratios)
@@ -114,6 +133,7 @@ class AnchorGenerator(nn.Module):
     # output g[i] anchors that are s[i] distance apart in direction i, with the same dimensions as a.
     def grid_anchors(self, grid_sizes, strides):
         # type: (List[List[int]], List[List[Tensor]]) -> List[Tensor]
+        # Output : List[Tensor] where each tensor is anchor boxes generated from a feature-map.
         anchors = []
         cell_anchors = self.cell_anchors
         assert cell_anchors is not None
@@ -156,7 +176,9 @@ class AnchorGenerator(nn.Module):
 
     def forward(self, image_list, feature_maps):
         # type: (ImageList, List[Tensor]) -> List[Tensor]
+        # list of grid_size : [[width, height]], for each of feature-maps from FPN layer
         grid_sizes = list([feature_map.shape[-2:] for feature_map in feature_maps])
+        # size of input image : [width, height]
         image_size = image_list.tensors.shape[-2:]
         dtype, device = feature_maps[0].dtype, feature_maps[0].device
         strides = [
@@ -167,6 +189,14 @@ class AnchorGenerator(nn.Module):
             for g in grid_sizes
         ]
         self.set_cell_anchors(dtype, device)
+        # Now, For each position in each of the feature map we get from the
+        # FPN layer (Remember we get list of feature maps), Draw anchor boxes .
+        # NOTE : IGNORE THE DEPTH i.e don't generate anchor boxes across all
+        # the channels for a feature map.
+
+        # Also, anchor box generated is always same.
+        # No meaning in calculating these at each iteration in forward pass
+        # So we cached the anchor box positions.
         anchors_over_all_feature_maps = self.cached_grid_anchors(grid_sizes, strides)
         anchors = torch.jit.annotate(List[List[torch.Tensor]], [])
         for i, (image_height, image_width) in enumerate(image_list.image_sizes):
@@ -176,6 +206,7 @@ class AnchorGenerator(nn.Module):
             anchors.append(anchors_in_image)
         anchors = [torch.cat(anchors_per_image) for anchors_per_image in anchors]
         # Clear the cache in case that memory leaks.
+        # QUESTION : what's the point of caching then ?
         self._cache.clear()
         return anchors
 
@@ -508,6 +539,7 @@ class RegionProposalNetwork(torch.nn.Module):
         num_anchors_per_level = [
             s[0] * s[1] * s[2] for s in num_anchors_per_level_shape_tensors
         ]
+        # Just change the shape for easy manipulation.
         objectness, pred_bbox_deltas = concat_box_prediction_layers(
             objectness, pred_bbox_deltas
         )
